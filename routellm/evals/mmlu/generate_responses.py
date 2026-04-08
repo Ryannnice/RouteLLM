@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 import tiktoken
 import tqdm
-from openai import OpenAI
 
 from routellm.controller import ModelPair
 from routellm.evals.mmlu.domains import ALL_MMLU_DOMAINS
@@ -29,7 +28,13 @@ https://github.com/sgl-project/sglang/blob/main/benchmark/mmlu/bench_sglang.py
 
 def select_sglang_backend(args):
     if args.backend.startswith("gpt") or args.backend.startswith("router-"):
-        backend = OpenAI(args.backend, base_url=f"{args.host}:{args.port}/v1")
+        from sglang.lang.backend.openai import OpenAI as SGLangOpenAI
+
+        backend = SGLangOpenAI(
+            args.backend,
+            base_url=f"{args.host}:{args.port}/v1",
+            api_key="dummy",
+        )
     else:
         raise ValueError(f"Invalid backend: {args.backend}")
     return backend

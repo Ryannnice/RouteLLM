@@ -288,17 +288,21 @@ class MTBench(Benchmark):
 
 
 class GSM8K(Benchmark):
-    def __init__(self, routed_pair, overwrite_cache):
+    def __init__(self, routed_pair, overwrite_cache, responses_path=None):
         self.routed_pair = routed_pair
         self.overwrite_cache = overwrite_cache
-        self.cache_path = f"{CURRENT_DIR}/gsm8k/cache.npy"
+        self.responses_path = responses_path or f"{CURRENT_DIR}/gsm8k/gsm8k_responses.csv"
+
+        cache_dir = os.path.dirname(self.responses_path)
+        cache_name = os.path.splitext(os.path.basename(self.responses_path))[0]
+        self.cache_path = os.path.join(cache_dir, f"{cache_name}.cache.npy")
 
         try:
             self.cache = np.load(self.cache_path, allow_pickle=True).item()
         except:
             self.cache = {}
 
-        all_data = pd.read_csv(f"{CURRENT_DIR}/gsm8k/gsm8k_responses.csv")
+        all_data = pd.read_csv(self.responses_path)
         original_len = len(all_data)
 
         contaminated_prompts = pd.read_json(

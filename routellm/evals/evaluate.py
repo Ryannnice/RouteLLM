@@ -190,6 +190,17 @@ if __name__ == "__main__":
     parser.add_argument("--config", type=str, default=None)
     parser.add_argument("--num-results", type=int, default=10)
     parser.add_argument("--random-iters", type=int, default=10)
+    parser.add_argument(
+        "--gsm8k-responses",
+        type=str,
+        default=None,
+        help="Custom GSM8K response CSV generated for the current strong/weak model pair.",
+    )
+    parser.add_argument(
+        "--plot-optimal",
+        action="store_true",
+        help="Overlay the theoretical optimal routing frontier on the plot.",
+    )
 
     args = parser.parse_args()
     print(args)
@@ -212,7 +223,9 @@ if __name__ == "__main__":
         benchmark = MTBench(controller.model_pair, args.overwrite_cache)
     elif args.benchmark == "gsm8k":
         print("Running eval for GSM8k.")
-        benchmark = GSM8K(controller.model_pair, args.overwrite_cache)
+        benchmark = GSM8K(
+            controller.model_pair, args.overwrite_cache, args.gsm8k_responses
+        )
     else:
         raise ValueError(f"Invalid benchmark {args.benchmark}")
 
@@ -272,4 +285,5 @@ if __name__ == "__main__":
         args.benchmark,
         controller.model_pair,
         args.output,
+        plot_optimal=args.plot_optimal,
     )

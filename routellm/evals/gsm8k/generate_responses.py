@@ -1,3 +1,4 @@
+import argparse
 import ast
 import json
 import os
@@ -7,7 +8,6 @@ from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
-from openai import OpenAI
 
 from routellm.controller import ModelPair
 
@@ -17,14 +17,17 @@ https://github.com/sgl-project/sglang/blob/main/benchmark/gsm8k/bench_sglang.py
 """
 
 INVALID = -9999999
-ROUTED_PAIR = ModelPair(
-    strong="gpt-4-1106-preview", weak="mistralai/Mixtral-8x7B-Instruct-v0.1"
-)
 
 
 def select_sglang_backend(args):
     if args.backend.startswith("gpt") or args.backend.startswith("router-"):
-        backend = OpenAI(args.backend, base_url=f"{args.host}:{args.port}/v1")
+        from sglang.lang.backend.openai import OpenAI as SGLangOpenAI
+
+        backend = SGLangOpenAI(
+            args.backend,
+            base_url=f"{args.host}:{args.port}/v1",
+            api_key="dummy",
+        )
     else:
         raise ValueError(f"Invalid backend: {args.backend}")
     return backend
@@ -70,9 +73,13 @@ def main(args):
     current_dir = os.path.dirname(os.path.abspath(__file__))
     lines = read_jsonl(f"{current_dir}/test.jsonl")
     train = read_jsonl(f"{current_dir}/train.jsonl")
+    routed_pair = ModelPair(strong=args.strong_model, weak=args.weak_model)
+
+    if args.limit is not None:
+        lines = lines[: args.limit]
 
     # Construct prompts
-    k = 8
+    k = args.ntrain
     few_shot_examples = get_few_shot_examples(train, k)
 
     questions = []
@@ -118,38 +125,79 @@ def main(args):
         responses.append(states[i]["answer"])
 
     # Compute accuracy
-    return np.array(preds) == np.array(labels), responses
+    print(
+        f"{args.backend}: accuracy={np.mean(np.array(preds) == np.array(labels)) * 100:.2f}% "
+        f"on {len(lines)} GSM8K questions in {time.time() - tic:.2f}s"
+    )
+    return np.array(preds) == np.array(labels), responses, questions, routed_pair
 
 
-evaluate_args_base = {
-    "parallel": 64,
-    "host": "http://localhost",
-    "port": "6060",
-}
-weak_cors, weak_responses = main(
-    SimpleNamespace(**evaluate_args_base, backend="router-random-1.0"),
-)
-strong_cors, strong_responses = main(
-    SimpleNamespace(**evaluate_args_base, backend="router-random-0.0"),
-)
-current_dir = os.path.dirname(os.path.abspath(__file__))
-prompts = pd.read_json(f"{current_dir}/test.jsonl", lines=True)["question"].tolist()
+def build_parser():
+    parser = argparse.ArgumentParser(
+        description="Generate GSM8K strong/weak responses through a running RouteLLM server."
+    )
+    parser.add_argument("--host", type=str, default="http://127.0.0.1")
+    parser.add_argument("--port", type=str, default="6060")
+    parser.add_argument("--parallel", type=int, default=64)
+    parser.add_argument("--ntrain", type=int, default=8)
+    parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument(
+        "--strong-model",
+        type=str,
+        default="gpt-4-1106-preview",
+    )
+    parser.add_argument(
+        "--weak-model",
+        type=str,
+        default="mistralai/Mixtral-8x7B-Instruct-v0.1",
+    )
+    parser.add_argument(
+        "--output-file",
+        type=str,
+        default=None,
+        help="CSV path for generated GSM8K responses. Defaults to gsm8k_responses.csv.",
+    )
+    return parser
 
-assert len(weak_cors) == len(strong_cors)
 
-result_df = pd.DataFrame(
-    zip(prompts, weak_cors, strong_cors, weak_responses, strong_responses),
-    columns=[
-        "prompt",
-        ROUTED_PAIR.weak,
-        ROUTED_PAIR.strong,
-        f"{ROUTED_PAIR.weak}_response",
-        f"{ROUTED_PAIR.strong}_response",
-    ],
-)
+if __name__ == "__main__":
+    parser = build_parser()
+    args = parser.parse_args()
 
-current_dir = os.path.dirname(os.path.abspath(__file__))
-result_df.to_csv(
-    f"{current_dir}/gsm8k_responses.csv",
-    index=False,
-)
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    output_file = args.output_file or f"{current_dir}/gsm8k_responses.csv"
+    output_dir = os.path.dirname(output_file)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+    evaluate_args_base = {
+        "parallel": args.parallel,
+        "host": args.host,
+        "port": args.port,
+        "ntrain": args.ntrain,
+        "limit": args.limit,
+        "strong_model": args.strong_model,
+        "weak_model": args.weak_model,
+    }
+
+    weak_cors, weak_responses, prompts, routed_pair = main(
+        SimpleNamespace(**evaluate_args_base, backend="router-random-1.0"),
+    )
+    strong_cors, strong_responses, _, _ = main(
+        SimpleNamespace(**evaluate_args_base, backend="router-random-0.0"),
+    )
+
+    assert len(weak_cors) == len(strong_cors)
+
+    result_df = pd.DataFrame(
+        zip(prompts, weak_cors, strong_cors, weak_responses, strong_responses),
+        columns=[
+            "prompt",
+            routed_pair.weak,
+            routed_pair.strong,
+            f"{routed_pair.weak}_response",
+            f"{routed_pair.strong}_response",
+        ],
+    )
+
+    result_df.to_csv(output_file, index=False)
+    print(f"Saved GSM8K responses to {output_file}")
