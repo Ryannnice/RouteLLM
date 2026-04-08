@@ -19,6 +19,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 def generate_results(
     df_router_result, benchmark, benchmark_name, routed_pair, output, plot_optimal=False
 ):
+    os.makedirs(output, exist_ok=True)
     plt.figure(figsize=(6, 5))
     for method in df_router_result["method"].unique():
         df_per_method = df_router_result[
@@ -125,10 +126,10 @@ def generate_results(
         print("Metrics:\n", metrics)
 
 
-def pretty_print_results(threshold, accuracy, model_counts, total):
+def pretty_print_results(router_name, benchmark_name, threshold, accuracy, model_counts, total):
     header = (
         "=" * 15
-        + f" {router} with threshold {threshold} on {args.benchmark} "
+        + f" {router_name} with threshold {threshold} on {benchmark_name} "
         + "=" * 15
     )
     print("\n" + header)
@@ -250,7 +251,9 @@ if __name__ == "__main__":
                 controller, router, args.num_results, False
             ):
                 print(f"Evaluating router: {router} with threshold {threshold}...")
-                pretty_print_results(threshold, accuracy, model_counts, total)
+                pretty_print_results(
+                    router, args.benchmark, threshold, accuracy, model_counts, total
+                )
 
                 result = {
                     "method": str(router),
@@ -267,6 +270,6 @@ if __name__ == "__main__":
         all_results,
         benchmark,
         args.benchmark,
-        controller.model_pair.strong,
+        controller.model_pair,
         args.output,
     )

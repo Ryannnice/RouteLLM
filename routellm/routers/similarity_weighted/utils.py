@@ -1,6 +1,7 @@
 import json
 import math
 import os
+from functools import lru_cache
 
 import numpy as np
 import pandas as pd
@@ -8,7 +9,11 @@ from openai import OpenAI
 from sklearn.linear_model import LogisticRegression
 
 choices = ["A", "B", "C", "D"]
-OPENAI_CLIENT = OpenAI()
+
+
+@lru_cache(maxsize=1)
+def get_openai_client():
+    return OpenAI()
 
 
 def compute_tiers(model_ratings, num_tiers):

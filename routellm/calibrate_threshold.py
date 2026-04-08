@@ -22,6 +22,8 @@ if __name__ == "__main__":
         default=["random"],
         choices=list(ROUTER_CLS.keys()),
     )
+    parser.add_argument("--strong-model", type=str, default="gpt-4-1106-preview")
+    parser.add_argument("--weak-model", type=str, default="mixtral-8x7b-instruct-v0.1")
     parser.add_argument("--strong-model-pct", type=float)
     parser.add_argument(
         "--task", type=str, choices=["generate", "calibrate"], default="calibrate"
@@ -34,8 +36,8 @@ if __name__ == "__main__":
         controller = Controller(
             routers=args.routers,
             config=yaml.safe_load(open(args.config, "r")) if args.config else None,
-            # This is not needed since we only calculate the win rate
-            routed_pair=None,
+            strong_model=args.strong_model,
+            weak_model=args.weak_model,
             progress_bar=True,
         )
 

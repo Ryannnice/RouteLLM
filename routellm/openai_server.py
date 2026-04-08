@@ -16,7 +16,6 @@ import uvicorn
 import yaml
 from fastapi.concurrency import asynccontextmanager
 from fastapi.responses import JSONResponse, StreamingResponse
-from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
 from routellm.controller import Controller, RoutingError
@@ -25,7 +24,6 @@ from routellm.routers.routers import ROUTER_CLS
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 CONTROLLER = None
 
-openai_client = AsyncOpenAI()
 count = defaultdict(lambda: defaultdict(int))
 
 
