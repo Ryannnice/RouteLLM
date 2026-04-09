@@ -16,6 +16,7 @@ class CausalLLMClassifier:
         config: RouterModelConfig,
         ckpt_local_path: str,
         prompt_format: PromptFormat,
+        tokenizer_id: str,
         score_threshold: int,
         prompt_field: str = "messages",
         use_last_turn: bool = False,
@@ -49,7 +50,7 @@ class CausalLLMClassifier:
         self.additinal_fields = additional_fields
 
         self.tokenizer = get_tokenizer(
-            config.model_id,
+            tokenizer_id,
             special_tokens=config.special_tokens,
             truncation_side="left",
             padding_side="left",

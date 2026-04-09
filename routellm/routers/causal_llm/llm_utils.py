@@ -12,6 +12,16 @@ from routellm.routers.causal_llm.configs import (
 from routellm.routers.causal_llm.prompt_format import PromptFormat
 
 
+def get_hf_token():
+    # Prefer the legacy project variable, but support the standard Hugging Face
+    # token names so gated checkpoints work with a normal HF login/export.
+    return (
+        os.getenv("LLAMA2_HF_TOKEN")
+        or os.getenv("HF_TOKEN")
+        or os.getenv("HUGGING_FACE_HUB_TOKEN")
+    )
+
+
 def load_model_config(yaml_path: str):
     with open(yaml_path, "r") as file:
         yaml_data = yaml.safe_load(file)
@@ -35,7 +45,7 @@ def get_model(config: RouterModelConfig, model_ckpt: str, pad_token_id: int = 2)
                 "flash_attention_2" if config.flash_attention_2 else None
             ),
             attention_dropout=config.attention_dropout,
-            token=os.getenv("LLAMA2_HF_TOKEN"),
+            token=get_hf_token(),
         )
     else:
         raise NotImplementedError(
@@ -52,7 +62,7 @@ def get_tokenizer(
         legacy=True,
         truncation_side=truncation_side,
         padding_side=padding_side,
-        token=os.getenv("LLAMA2_HF_TOKEN"),
+        token=get_hf_token(),
     )
     tokenizer.pad_token = tokenizer.eos_token
     if special_tokens:

@@ -1,7 +1,10 @@
 import torch
 from huggingface_hub import PyTorchModelHubMixin
 
-from routellm.routers.similarity_weighted.utils import get_openai_client
+from routellm.routers.similarity_weighted.utils import (
+    get_embedding_model_name,
+    get_openai_client,
+)
 
 MODEL_IDS = {
     "RWKV-4-Raven-14B": 0,
@@ -85,7 +88,7 @@ class MFModel(torch.nn.Module, PyTorchModelHubMixin):
         self.use_proj = use_proj
         self.P = torch.nn.Embedding(num_models, dim)
 
-        self.embedding_model = "text-embedding-3-small"
+        self.embedding_model = get_embedding_model_name()
 
         if self.use_proj:
             self.text_proj = torch.nn.Sequential(

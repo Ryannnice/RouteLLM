@@ -8,13 +8,10 @@ import numpy as np
 import pandas as pd
 import tiktoken
 import tqdm
+from datasets import load_dataset
 
 from routellm.controller import ModelPair
 from routellm.evals.mmlu.domains import ALL_MMLU_DOMAINS
-
-ROUTED_PAIR = ModelPair(
-    strong="gpt-4-1106-preview", weak="mistralai/Mixtral-8x7B-Instruct-v0.1"
-)
 
 choices = ["A", "B", "C", "D"]
 tokenizer = tiktoken.encoding_for_model("gpt-3.5-turbo")
@@ -68,6 +65,48 @@ def gen_prompt(train_df, subject, k=-1):
     for i in range(k):
         prompt += format_example(train_df, i)
     return prompt
+
+
+def answer_to_choice(answer):
+    if isinstance(answer, (int, np.integer)):
+        return choices[int(answer)]
+    if isinstance(answer, str):
+        answer = answer.strip()
+        if answer in choices:
+            return answer
+        if answer.isdigit():
+            return choices[int(answer)]
+    raise ValueError(f"Unsupported MMLU answer format: {answer!r}")
+
+
+def load_domain_frames(current_dir, domain, ntrain):
+    local_dev = f"{current_dir}/data/dev/{domain}_dev.csv"
+    local_test = f"{current_dir}/data/test/{domain}_test.csv"
+
+    if os.path.exists(local_dev) and os.path.exists(local_test):
+        dev_df = pd.read_csv(local_dev, header=None)[:ntrain]
+        test_df = pd.read_csv(local_test, header=None)
+        return dev_df, test_df
+
+    def hf_split_to_df(split):
+        ds = load_dataset("cais/mmlu", domain, split=split)
+        rows = []
+        for item in ds:
+            rows.append(
+                [
+                    item["question"],
+                    item["choices"][0],
+                    item["choices"][1],
+                    item["choices"][2],
+                    item["choices"][3],
+                    answer_to_choice(item["answer"]),
+                ]
+            )
+        return pd.DataFrame(rows)
+
+    dev_df = hf_split_to_df("dev")[:ntrain]
+    test_df = hf_split_to_df("test")
+    return dev_df, test_df
 
 
 def evaluate(args, subject, dev_df, test_df):
@@ -148,16 +187,13 @@ def evaluate(args, subject, dev_df, test_df):
     return cors, acc, latency, model_counts, prompts
 
 
-def generate_domain_data(args, domain):
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    cache_key = f"{current_dir}/responses/mmlu_{domain}.csv"
+def generate_domain_data(args, domain, routed_pair):
+    cache_key = f"{args.output_dir}/mmlu_{domain}.csv"
     if os.path.exists(cache_key):
         return pd.read_csv(cache_key)
 
-    dev_df = pd.read_csv(f"{current_dir}/data/dev/{domain}_dev.csv", header=None)[
-        : args.ntrain
-    ]
-    test_df = pd.read_csv(f"{current_dir}/data/test/{domain}_test.csv", header=None)
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    dev_df, test_df = load_domain_frames(current_dir, domain, args.ntrain)
 
     # Dummy router just to get the results
     weak_cors, _, _, _, prompts = evaluate(
@@ -178,7 +214,7 @@ def generate_domain_data(args, domain):
 
     result_df = pd.DataFrame(
         zip(prompts, weak_cors, strong_cors),
-        columns=["prompt", ROUTED_PAIR.weak, ROUTED_PAIR.strong],
+        columns=["prompt", routed_pair.weak, routed_pair.strong],
     )
 
     result_df.to_csv(cache_key, index=False)
@@ -191,7 +227,34 @@ if __name__ == "__main__":
     parser.add_argument("--parallel", type=int, default=64)
     parser.add_argument("--port", type=str, default="6060")
     parser.add_argument("--host", type=str, default="http://127.0.0.1")
+    parser.add_argument(
+        "--strong-model",
+        type=str,
+        default="gpt-4-1106-preview",
+    )
+    parser.add_argument(
+        "--weak-model",
+        type=str,
+        default="mistralai/Mixtral-8x7B-Instruct-v0.1",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help="Directory for generated per-domain CSVs. Defaults to mmlu/responses.",
+    )
+    parser.add_argument(
+        "--domains",
+        nargs="*",
+        default=None,
+        help="Optional subset of MMLU domains to generate. Defaults to all domains.",
+    )
     args = parser.parse_args()
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    args.output_dir = args.output_dir or f"{current_dir}/responses"
+    os.makedirs(args.output_dir, exist_ok=True)
+    routed_pair = ModelPair(strong=args.strong_model, weak=args.weak_model)
+    domains = args.domains or ALL_MMLU_DOMAINS
 
-    for domain in tqdm.tqdm(ALL_MMLU_DOMAINS, desc="Loading MMLU data"):
-        generate_domain_data(args, domain)
+    for domain in tqdm.tqdm(domains, desc="Loading MMLU data"):
+        generate_domain_data(args, domain, routed_pair)

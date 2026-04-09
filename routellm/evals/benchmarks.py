@@ -44,10 +44,17 @@ class Benchmark(abc.ABC):
 
 
 class MMLU(Benchmark):
-    def __init__(self, domains, routed_pair, overwrite_cache):
+    def __init__(self, domains, routed_pair, overwrite_cache, responses_dir=None):
         self.routed_pair = routed_pair
         self.overwrite_cache = overwrite_cache
-        self.cache_path = f"{CURRENT_DIR}/mmlu/cache.npy"
+        self.responses_dir = responses_dir or f"{CURRENT_DIR}/mmlu/responses"
+        if responses_dir is None:
+            self.cache_path = f"{CURRENT_DIR}/mmlu/cache.npy"
+        else:
+            responses_dir = self.responses_dir.rstrip(os.sep)
+            cache_dir = os.path.dirname(responses_dir) or "."
+            cache_name = os.path.basename(responses_dir)
+            self.cache_path = os.path.join(cache_dir, f"{cache_name}.cache.npy")
 
         try:
             self.cache = np.load(self.cache_path, allow_pickle=True).item()
@@ -59,7 +66,7 @@ class MMLU(Benchmark):
             all_data = pd.concat(
                 [
                     all_data,
-                    pd.read_csv(f"{CURRENT_DIR}/mmlu/responses/mmlu_{domain}.csv"),
+                    pd.read_csv(f"{self.responses_dir}/mmlu_{domain}.csv"),
                 ],
                 ignore_index=True,
             )

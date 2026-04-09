@@ -1,0 +1,24 @@
+sw_ranking:
+  arena_battle_datasets:
+    - lmsys/lmsys-arena-human-preference-55k
+    - routellm/gpt4_judge_battles
+  arena_embedding_datasets:
+    - routellm/arena_battles_embeddings
+    - routellm/gpt4_judge_battles_embeddings
+  # Proxy pair used only for router-side win-rate estimation.
+  # The actual served models are still provided via --strong-model / --weak-model.
+  strong_model: qwen1.5-72b-chat
+  weak_model: qwen1.5-7b-chat
+
+causal_llm:
+  checkpoint_path: routellm/causal_llm_gpt4_augmented
+  tokenizer_id: NousResearch/Meta-Llama-3-8B-Alternate-Tokenizer
+
+bert:
+  checkpoint_path: routellm/bert_gpt4_augmented
+
+mf:
+  checkpoint_path: routellm/mf_gpt4_augmented
+  # Proxy pair used only inside the MF router.
+  strong_model: qwen1.5-72b-chat
+  weak_model: qwen1.5-7b-chat

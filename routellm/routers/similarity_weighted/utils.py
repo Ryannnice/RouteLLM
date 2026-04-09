@@ -16,6 +16,18 @@ def get_openai_client():
     return OpenAI()
 
 
+@lru_cache(maxsize=1)
+def get_embedding_model_name():
+    override = os.environ.get("ROUTELLM_EMBEDDING_MODEL")
+    if override:
+        return override
+
+    base_url = (os.environ.get("OPENAI_BASE_URL") or "").lower()
+    if "openrouter.ai" in base_url:
+        return "openai/text-embedding-3-small"
+    return "text-embedding-3-small"
+
+
 def compute_tiers(model_ratings, num_tiers):
     n = len(model_ratings)
     m = num_tiers

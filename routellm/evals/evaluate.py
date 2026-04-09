@@ -197,6 +197,12 @@ if __name__ == "__main__":
         help="Custom GSM8K response CSV generated for the current strong/weak model pair.",
     )
     parser.add_argument(
+        "--mmlu-responses-dir",
+        type=str,
+        default=None,
+        help="Custom MMLU responses directory generated for the current strong/weak model pair.",
+    )
+    parser.add_argument(
         "--plot-optimal",
         action="store_true",
         help="Overlay the theoretical optimal routing frontier on the plot.",
@@ -217,7 +223,12 @@ if __name__ == "__main__":
     if args.benchmark == "mmlu":
         print("Running eval for full MMLU.")
         mmlu_domains = ALL_MMLU_DOMAINS
-        benchmark = MMLU(mmlu_domains, controller.model_pair, args.overwrite_cache)
+        benchmark = MMLU(
+            mmlu_domains,
+            controller.model_pair,
+            args.overwrite_cache,
+            args.mmlu_responses_dir,
+        )
     elif args.benchmark == "mt-bench":
         print("Running eval for MT Bench.")
         benchmark = MTBench(controller.model_pair, args.overwrite_cache)

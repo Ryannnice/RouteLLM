@@ -3,8 +3,9 @@ import functools
 import random
 
 import numpy as np
+import pandas as pd
 import torch
-from datasets import concatenate_datasets, load_dataset
+from datasets import load_dataset
 from huggingface_hub import hf_hub_download
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
@@ -18,6 +19,7 @@ from routellm.routers.matrix_factorization.model import MODEL_IDS, MFModel
 from routellm.routers.similarity_weighted.utils import (
     compute_elo_mle_with_tie,
     compute_tiers,
+    get_embedding_model_name,
     get_openai_client,
     preprocess_battles,
 )
@@ -58,6 +60,7 @@ class CausalLLMRouter(Router):
         num_outputs=5,
         model_type="causal",
         model_id="meta-llama/Meta-Llama-3-8B",
+        tokenizer_id=None,
         flash_attention_2=False,
     ):
         model_config = RouterModelConfig(
@@ -71,6 +74,7 @@ class CausalLLMRouter(Router):
         self.router_model = CausalLLMClassifier(
             config=model_config,
             ckpt_local_path=checkpoint_path,
+            tokenizer_id=tokenizer_id or model_id,
             score_threshold=score_threshold,
             prompt_format=prompt_format,
             prompt_field="messages",
@@ -144,9 +148,13 @@ class SWRankingRouter(Router):
         self.strong_model = strong_model
         self.weak_model = weak_model
 
-        self.arena_df = concatenate_datasets(
-            [load_dataset(dataset, split="train") for dataset in arena_battle_datasets]
-        ).to_pandas()
+        # Some Hub datasets expose equivalent string columns with different Arrow types
+        # (e.g. string vs large_string), which breaks concatenate_datasets on newer
+        # datasets versions. Convert per-dataset to pandas first, then concatenate.
+        self.arena_df = pd.concat(
+            [load_dataset(dataset, split="train").to_pandas() for dataset in arena_battle_datasets],
+            ignore_index=True,
+        )
         self.arena_df = preprocess_battles(self.arena_df)
 
         embeddings = [
@@ -154,7 +162,7 @@ class SWRankingRouter(Router):
             for dataset in arena_embedding_datasets
         ]
         self.arena_conv_embedding = np.concatenate(embeddings)
-        self.embedding_model = "text-embedding-3-small"
+        self.embedding_model = get_embedding_model_name()
 
         assert len(self.arena_df) == len(
             self.arena_conv_embedding

@@ -126,6 +126,7 @@ celerybeat.pid
 
 # Environments
 .env
+.env.remote.local
 .venv
 env/
 venv/
