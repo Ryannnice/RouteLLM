@@ -166,7 +166,21 @@ def evaluate(args, subject, dev_df, test_df):
     preds = [
         s["answer"].strip()[0] if len(s["answer"].strip()) > 0 else "" for s in states
     ]
-    models = [s["model"] for s in states]
+    inferred_model = None
+    if args.backend == "router-random-1.0":
+        inferred_model = args.weak_model
+    elif args.backend == "router-random-0.0":
+        inferred_model = args.strong_model
+
+    models = []
+    for s in states:
+        try:
+            models.append(s["model"])
+        except KeyError:
+            if inferred_model is not None:
+                models.append(inferred_model)
+            else:
+                models.append(args.backend)
     latency = time.time() - tic
 
     cors = [pred == label for pred, label in zip(preds, labels)]
