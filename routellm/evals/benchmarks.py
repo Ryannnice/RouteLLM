@@ -82,18 +82,25 @@ class MMLU(Benchmark):
         )
 
     def evaluate(self, controller, router, num_results, overwrite_router_cache):
+        partial_cache_path = f"{self.cache_path}.{router}.partial.npy"
         if (
             router not in self.cache
             or router in self.overwrite_cache
             or overwrite_router_cache
         ):
             strong_win_rates = controller.batch_calculate_win_rate(
-                prompts=self.all_data["prompt"], router=router
+                prompts=self.all_data["prompt"],
+                router=router,
+                partial_cache_path=partial_cache_path,
             )
             self.cache[router] = strong_win_rates
             np.save(self.cache_path, self.cache)
+            if os.path.exists(partial_cache_path):
+                os.remove(partial_cache_path)
         else:
             strong_win_rates = self.cache[router]
+            if os.path.exists(partial_cache_path):
+                os.remove(partial_cache_path)
 
         # Choose thresholds split into 10 equally sized bins (including duplicates)
         _, thresholds = pd.qcut(strong_win_rates, num_results, retbins=True)
@@ -175,6 +182,7 @@ class MTBench(Benchmark):
             self.cache = {}
 
     def evaluate(self, controller, router, num_results, overwrite_router_cache):
+        partial_cache_path = f"{self.cache_path}.{router}.partial.npy"
         if (
             router not in self.cache
             or router in self.overwrite_cache
@@ -184,11 +192,16 @@ class MTBench(Benchmark):
                 # Only use first turn for routing
                 prompts=self.questions["turns"].apply(lambda x: x[0]),
                 router=router,
+                partial_cache_path=partial_cache_path,
             )
             self.cache[router] = strong_win_rates
             np.save(self.cache_path, self.cache)
+            if os.path.exists(partial_cache_path):
+                os.remove(partial_cache_path)
         else:
             strong_win_rates = self.cache[router]
+            if os.path.exists(partial_cache_path):
+                os.remove(partial_cache_path)
 
         _, thresholds = pd.qcut(strong_win_rates, num_results, retbins=True)
         questions = self.questions[["question_id", "turns"]]
@@ -321,18 +334,25 @@ class GSM8K(Benchmark):
         )
 
     def evaluate(self, controller, router, num_results, overwrite_router_cache):
+        partial_cache_path = f"{self.cache_path}.{router}.partial.npy"
         if (
             router not in self.cache
             or router in self.overwrite_cache
             or overwrite_router_cache
         ):
             strong_win_rates = controller.batch_calculate_win_rate(
-                prompts=self.all_data["prompt"], router=router
+                prompts=self.all_data["prompt"],
+                router=router,
+                partial_cache_path=partial_cache_path,
             )
             self.cache[router] = strong_win_rates
             np.save(self.cache_path, self.cache)
+            if os.path.exists(partial_cache_path):
+                os.remove(partial_cache_path)
         else:
             strong_win_rates = self.cache[router]
+            if os.path.exists(partial_cache_path):
+                os.remove(partial_cache_path)
 
         # Choose thresholds split into 10 equally sized bins (including duplicates)
         _, thresholds = pd.qcut(strong_win_rates, num_results, retbins=True)

@@ -1,5 +1,6 @@
 import abc
 import functools
+import os
 import random
 
 import numpy as np
@@ -113,18 +114,23 @@ class BERTRouter(Router):
         checkpoint_path,
         num_labels=3,
     ):
+        device_name = os.getenv("ROUTELLM_DEVICE")
+        if device_name is None:
+            device_name = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = torch.device(device_name)
         self.model = AutoModelForSequenceClassification.from_pretrained(
             checkpoint_path, num_labels=num_labels
-        )
+        ).to(self.device)
+        self.model.eval()
         self.tokenizer = AutoTokenizer.from_pretrained(checkpoint_path)
 
     def calculate_strong_win_rate(self, prompt):
         inputs = self.tokenizer(
             prompt, return_tensors="pt", padding=True, truncation=True
-        )
+        ).to(self.device)
         with torch.no_grad():
             outputs = self.model(**inputs)
-            logits = outputs.logits.numpy()[0]
+            logits = outputs.logits.detach().cpu().numpy()[0]
 
         exp_scores = np.exp(logits - np.max(logits))
         softmax_scores = exp_scores / np.sum(exp_scores)
@@ -229,7 +235,10 @@ class MatrixFactorizationRouter(Router):
         num_classes=1,
         use_proj=True,
     ):
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        device_name = os.getenv("ROUTELLM_DEVICE")
+        if device_name is None:
+            device_name = "cuda" if torch.cuda.is_available() else "cpu"
+        device = torch.device(device_name)
 
         self.model = MFModel.from_pretrained(
             checkpoint_path,

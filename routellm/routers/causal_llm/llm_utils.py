@@ -35,11 +35,13 @@ def load_prompt_format(model_id):
 
 
 def get_model(config: RouterModelConfig, model_ckpt: str, pad_token_id: int = 2):
+    device_name = os.getenv("ROUTELLM_DEVICE")
+    use_cuda = device_name.startswith("cuda") if device_name else torch.cuda.is_available()
     if config.model_type == ModelTypeEnum.CAUSAL:
         return AutoModelForCausalLM.from_pretrained(
             model_ckpt,
             trust_remote_code=True,
-            torch_dtype=torch.bfloat16,
+            torch_dtype=torch.bfloat16 if use_cuda else torch.float32,
             use_cache=False,
             attn_implementation=(
                 "flash_attention_2" if config.flash_attention_2 else None

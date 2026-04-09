@@ -1,8 +1,10 @@
+import os
 from collections import defaultdict
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any, Optional
 
+import numpy as np
 import pandas as pd
 from litellm import acompletion, completion
 from tqdm import tqdm
@@ -119,9 +121,42 @@ class Controller:
         self,
         prompts: pd.Series,
         router: str,
+        partial_cache_path: Optional[str] = None,
     ):
         self._validate_router_threshold(router, 0)
         router_instance = self.routers[router]
+        if router_instance.NO_PARALLEL and partial_cache_path:
+            os.makedirs(os.path.dirname(partial_cache_path) or ".", exist_ok=True)
+            partial_results = []
+            if os.path.exists(partial_cache_path):
+                partial_results = np.load(
+                    partial_cache_path, allow_pickle=True
+                ).tolist()
+
+            if len(partial_results) > len(prompts):
+                raise RoutingError(
+                    f"Partial cache for {router} has {len(partial_results)} entries,"
+                    f" but benchmark only has {len(prompts)} prompts."
+                )
+
+            save_every = max(1, int(os.environ.get("ROUTELLM_PARTIAL_CACHE_EVERY", "5")))
+            remaining_prompts = prompts.iloc[len(partial_results) :]
+            iterator = remaining_prompts
+            if self.progress_bar:
+                iterator = tqdm(
+                    remaining_prompts,
+                    total=len(remaining_prompts),
+                    desc=f"Routing {router}",
+                )
+
+            results = list(partial_results)
+            for prompt in iterator:
+                results.append(router_instance.calculate_strong_win_rate(prompt))
+                if len(results) % save_every == 0:
+                    np.save(partial_cache_path, np.asarray(results, dtype=float))
+
+            np.save(partial_cache_path, np.asarray(results, dtype=float))
+            return pd.Series(results, index=prompts.index)
         if router_instance.NO_PARALLEL and self.progress_bar:
             return prompts.progress_apply(router_instance.calculate_strong_win_rate)
         elif router_instance.NO_PARALLEL:

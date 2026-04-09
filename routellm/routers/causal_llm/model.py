@@ -1,3 +1,4 @@
+import os
 import re
 import time
 from typing import List
@@ -41,8 +42,13 @@ class CausalLLMClassifier:
         for i in range(1, config.num_outputs + 1):
             assert f"[[{i}]]" in config.special_tokens
 
+        device_name = os.getenv("ROUTELLM_DEVICE")
+        if device_name is None:
+            device_name = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = torch.device(device_name)
+
         model = get_model(config=config, model_ckpt=ckpt_local_path)
-        self.model = model.to("cuda").eval()
+        self.model = model.to(self.device).eval()
 
         self.prompt_format = prompt_format
         self.use_last_turn = use_last_turn
@@ -61,6 +67,7 @@ class CausalLLMClassifier:
         assert (
             self.score_threshold == config.num_outputs - 1
         ), "this is the default value for now."
+        print(f"Using router device: {self.device}")
         print(f"Done loading model in {time.time() - s} seconds.")
 
     def preprocess(self, row):
@@ -84,7 +91,7 @@ class CausalLLMClassifier:
 
     def __call__(self, row):
         row = self.preprocess(row)
-        input_ids = torch.as_tensor(row["input_ids"]).to("cuda").reshape(1, -1)
+        input_ids = torch.as_tensor(row["input_ids"]).to(self.device).reshape(1, -1)
         with torch.no_grad():
             output_new = self.model.generate(
                 input_ids,
